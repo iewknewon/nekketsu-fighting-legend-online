@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>热血格斗传说 - 网页联机版</title>
+    <style>
+        :root {
+            --bg-a: #120f11;
+            --bg-b: #21171a;
+            --panel: rgba(16, 12, 12, 0.86);
+            --line: rgba(255, 210, 92, 0.24);
+            --gold: #f6d25d;
+            --gold-deep: #d89a1b;
+            --ink: #fff8eb;
+            --muted: #d7c7b0;
+            --danger: #ea4335;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html, body {
+            margin: 0;
+            min-height: 100%;
+            background:
+                radial-gradient(circle at top, rgba(255, 184, 76, 0.18), transparent 35%),
+                linear-gradient(145deg, var(--bg-a) 0%, var(--bg-b) 100%);
+            color: var(--ink);
+            font-family: "Microsoft YaHei", "Segoe UI", sans-serif;
+        }
+
+        body {
+            padding: 24px;
+        }
+
+        .shell {
+            max-width: 1240px;
+            margin: 0 auto;
+        }
+
+        .hero {
+            display: grid;
+            grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
+            gap: 24px;
+            align-items: stretch;
+        }
+
+        .title-card,
+        .help-card,
+        .player-card {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 22px;
+            box-shadow: 0 22px 80px rgba(0, 0, 0, 0.45);
+            backdrop-filter: blur(14px);
+        }
+
+        .title-card {
+            padding: 30px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .title-card::after {
+            content: "";
+            position: absolute;
+            inset: auto -12% -35% auto;
+            width: 220px;
+            height: 220px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(246, 210, 93, 0.25), transparent 70%);
+            pointer-events: none;
+        }
+
+        .eyebrow {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 14px;
+            border-radius: 999px;
+            border: 1px solid rgba(246, 210, 93, 0.28);
+            color: var(--gold);
+            font-size: 13px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            background: rgba(246, 210, 93, 0.08);
+        }
+
+        h1 {
+            margin: 18px 0 14px;
+            font-size: clamp(34px, 5vw, 58px);
+            line-height: 1;
+            color: #ffeec4;
+            text-shadow: 0 4px 24px rgba(216, 154, 27, 0.2);
+        }
+
+        .subtitle {
+            margin: 0;
+            font-size: 18px;
+            line-height: 1.7;
+            color: var(--muted);
+            max-width: 58ch;
+        }
+
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 14px;
+            margin-top: 28px;
+        }
+
+        .metric {
+            padding: 16px 18px;
+            border-radius: 16px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .metric-label {
+            display: block;
+            font-size: 12px;
+            color: var(--muted);
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .metric-value {
+            display: block;
+            margin-top: 8px;
+            font-size: 22px;
+            color: var(--gold);
+            font-weight: 700;
+        }
+
+        .help-card {
+            padding: 26px 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+        }
+
+        .help-card h2,
+        .player-card h2 {
+            margin: 0;
+            font-size: 24px;
+            color: #fff1b0;
+        }
+
+        .help-card p {
+            margin: 0;
+            line-height: 1.7;
+            color: var(--muted);
+        }
+
+        .tips {
+            display: grid;
+            gap: 12px;
+        }
+
+        .action-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .inline-form {
+            display: grid;
+            gap: 10px;
+            margin-top: 4px;
+        }
+
+        .inline-form label {
+            font-size: 13px;
+            color: var(--muted);
+        }
+
+        .inline-form input {
+            width: 100%;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--ink);
+            padding: 11px 12px;
+            border-radius: 12px;
+            font: inherit;
+        }
+
+        .quick-lobby {
+            margin-top: 8px;
+            padding: 14px;
+            border-radius: 16px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            display: grid;
+            gap: 12px;
+        }
+
+        .quick-lobby h3 {
+            margin: 0;
+            font-size: 16px;
+            color: #fff1b0;
+        }
+
+        .quick-lobby-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        .quick-lobby-grid .field-span-2 {
+            grid-column: 1 / -1;
+        }
+
+        .quick-lobby label {
+            display: grid;
+            gap: 6px;
+            font-size: 13px;
+            color: var(--muted);
+        }
+
+        .quick-lobby input,
+        .quick-lobby select {
+            width: 100%;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--ink);
+            padding: 11px 12px;
+            border-radius: 12px;
+            font: inherit;
+        }
+
+        .quick-lobby-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .quick-lobby-status {
+            min-height: 20px;
+            font-size: 13px;
+            color: var(--muted);
+        }
+
+        .room-list {
+            display: grid;
+            gap: 8px;
+        }
+
+        .room-row {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto auto;
+            gap: 10px;
+            align-items: center;
+            padding: 10px 12px;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .room-meta {
+            display: grid;
+            gap: 4px;
+            min-width: 0;
+        }
+
+        .room-name {
+            color: var(--ink);
+            font-weight: 700;
+            word-break: break-word;
+        }
+
+        .room-sub {
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        .action-button {
+            appearance: none;
+            border: 1px solid rgba(246, 210, 93, 0.28);
+            background: linear-gradient(180deg, rgba(246, 210, 93, 0.22), rgba(216, 154, 27, 0.18));
+            color: #fff1b0;
+            padding: 12px 16px;
+            border-radius: 14px;
+            font: inherit;
+            cursor: pointer;
+            transition: transform 120ms ease, border-color 120ms ease, opacity 120ms ease;
+        }
+
+        .action-button:hover:not(:disabled) {
+            transform: translateY(-1px);
+            border-color: rgba(246, 210, 93, 0.46);
+        }
+
+        .action-button:disabled {
+            cursor: not-allowed;
+            opacity: 0.45;
+        }
+
+        .tip {
+            padding: 14px 16px;
+            border-radius: 14px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .tip strong {
+            display: block;
+            color: var(--gold);
+            margin-bottom: 6px;
+        }
+
+        .play-zone {
+            margin-top: 24px;
+            background: rgba(9, 8, 8, 0.88);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 28px;
+            padding: 18px;
+            box-shadow: 0 24px 100px rgba(0, 0, 0, 0.52);
+        }
+
+        #game {
+            width: 100%;
+            min-height: min(78vh, 900px);
+            border-radius: 20px;
+            overflow: hidden;
+            background: #000;
+        }
+
+        .footer-row {
+            margin-top: 18px;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 18px;
+            align-items: start;
+        }
+
+        .player-card {
+            padding: 22px 24px;
+        }
+
+        .player-card p {
+            margin: 12px 0 0;
+            line-height: 1.7;
+            color: var(--muted);
+        }
+
+        .control-list {
+            margin-top: 18px;
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .control-item {
+            padding: 12px 14px;
+            border-radius: 14px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            color: var(--ink);
+        }
+
+        .control-item span {
+            display: block;
+            margin-top: 6px;
+            color: var(--gold);
+            font-weight: 700;
+        }
+
+        .badge-stack {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-content: start;
+        }
+
+        .badge {
+            padding: 10px 14px;
+            border-radius: 999px;
+            background: rgba(246, 210, 93, 0.1);
+            border: 1px solid rgba(246, 210, 93, 0.24);
+            color: #ffe19a;
+            font-size: 13px;
+        }
+
+        .badge[data-tone="loading"] {
+            color: #ffe19a;
+            border-color: rgba(246, 210, 93, 0.4);
+        }
+
+        .badge[data-tone="ok"] {
+            color: #bff7c9;
+            border-color: rgba(91, 214, 117, 0.38);
+            background: rgba(91, 214, 117, 0.12);
+        }
+
+        .badge[data-tone="error"] {
+            color: #ffd9d5;
+            border-color: rgba(234, 67, 53, 0.38);
+            background: rgba(234, 67, 53, 0.12);
+        }
+
+        .error-banner {
+            display: none;
+            margin-bottom: 18px;
+            padding: 16px 18px;
+            border-radius: 16px;
+            border: 1px solid rgba(234, 67, 53, 0.38);
+            background: rgba(234, 67, 53, 0.12);
+            color: #ffd9d5;
+            line-height: 1.6;
+        }
+
+        code {
+            font-family: Consolas, "Courier New", monospace;
+        }
+
+        @media (max-width: 980px) {
+            .hero,
+            .footer-row {
+                grid-template-columns: 1fr;
+            }
+
+            .status-grid,
+            .control-list {
+                grid-template-columns: 1fr;
+            }
+
+            body {
+                padding: 14px;
+            }
+
+            .play-zone {
+                padding: 12px;
+                border-radius: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="shell">
+        <div id="errorBanner" class="error-banner"></div>
+
+        <section class="hero">
+            <article class="title-card">
+                <div class="eyebrow">Browser Netplay Deployment</div>
+                <h1>热血格斗传说</h1>
+                <p class="subtitle">
+                    这是部署后可直接打开网页游玩的版本。玩家不需要安装模拟器，只要打开链接，
+                    在游戏内的 <code>Netplay</code> 菜单创建或加入房间即可。
+                </p>
+
+                <div class="status-grid">
+                    <div class="metric">
+                        <span class="metric-label">ROM</span>
+                        <span class="metric-value">Mapper 74</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">联机方式</span>
+                        <span class="metric-value">WebRTC</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">最大房间</span>
+                        <span class="metric-value">4 人</span>
+                    </div>
+                </div>
+            </article>
+
+            <aside class="help-card">
+                <h2>怎么开始</h2>
+                <div class="tips">
+                    <div class="tip">
+                        <strong>房主</strong>
+                        打开下方游戏，进入菜单里的 <code>Netplay</code>，创建房间并把页面链接发给朋友。
+                    </div>
+                    <div class="tip">
+                        <strong>加入者</strong>
+                        打开同一个页面链接，在 <code>Netplay</code> 里刷新房间列表，直接加入即可。
+                    </div>
+                    <div class="tip">
+                        <strong>公网联机</strong>
+                        如果你不是局域网环境，建议部署时配好 TURN/STUN。没配 TURN 时，部分网络环境可能互联失败。
+                    </div>
+                </div>
+                <p>
+                    如果你只是想自己本地验证，直接运行当前项目里的服务端，然后访问
+                    <code>http://localhost:3001/</code> 就行。
+                </p>
+                <div class="inline-form">
+                    <label for="playerNameInput">联机昵称</label>
+                    <input id="playerNameInput" type="text" maxlength="20" placeholder="例如：国夫 / Player 1">
+                </div>
+                <div class="inline-form">
+                    <label for="nesCoreSelect">NES 内核</label>
+                    <select id="nesCoreSelect">
+                        <option value="fceumm">FCEUmm</option>
+                        <option value="nestopia">Nestopia</option>
+                    </select>
+                </div>
+                <div class="action-group">
+                    <button id="copyLinkButton" class="action-button" type="button">复制当前页面链接</button>
+                    <button id="openNetplayButton" class="action-button" type="button" disabled>联机面板加载中</button>
+                </div>
+                <section class="quick-lobby">
+                    <h3>快速联机</h3>
+                    <div class="quick-lobby-grid">
+                        <label class="field-span-2">
+                            房间名
+                            <input id="roomNameInput" type="text" maxlength="40" placeholder="例如：今晚四人混战">
+                        </label>
+                        <label>
+                            最大人数
+                            <select id="maxPlayersSelect">
+                                <option value="2">2 人</option>
+                                <option value="3">3 人</option>
+                                <option value="4" selected>4 人</option>
+                            </select>
+                        </label>
+                        <label>
+                            房间密码
+                            <input id="roomPasswordInput" type="text" maxlength="20" placeholder="可留空">
+                        </label>
+                    </div>
+                    <div class="quick-lobby-actions">
+                        <button id="createRoomButton" class="action-button" type="button" disabled>创建房间</button>
+                        <button id="refreshRoomsButton" class="action-button" type="button" disabled>刷新房间列表</button>
+                    </div>
+                    <div id="quickLobbyStatus" class="quick-lobby-status">房间列表加载中</div>
+                    <div id="roomList" class="room-list"></div>
+                </section>
+            </aside>
+        </section>
+
+        <section class="play-zone">
+            <div id="game"></div>
+        </section>
+
+        <section class="footer-row">
+            <article class="player-card">
+                <h2>默认控制</h2>
+                <p>
+                    先按默认键位进入游戏即可，之后也可以在 EmulatorJS 的设置里改。
+                    联机按钮会直接出现在底栏里，不需要再跳到旧版大厅。
+                </p>
+                <div class="control-list">
+                    <div class="control-item">玩家 1 移动<span>W A S D</span></div>
+                    <div class="control-item">玩家 1 攻击<span>J / K</span></div>
+                    <div class="control-item">开始 / Select<span>Enter / Shift</span></div>
+                    <div class="control-item">手柄支持<span>浏览器自动识别</span></div>
+                </div>
+            </article>
+
+            <div class="badge-stack">
+                <div id="runtimeBadge" class="badge" data-tone="loading">运行状态: 等待加载</div>
+                <div class="badge">EmulatorJS Self-Hosted</div>
+                <div id="coreBadge" class="badge">NES Core: FCEUmm</div>
+                <div class="badge">Zero Install for Players</div>
+                <div class="badge">Room-Based Browser Netplay</div>
+            </div>
+        </section>
+    </div>
+
+    <script src="/online-config.js"></script>
+    <script>
+        (async function bootstrap() {
+            const banner = document.getElementById("errorBanner");
+            const runtimeBadge = document.getElementById("runtimeBadge");
+            const copyLinkButton = document.getElementById("copyLinkButton");
+            const openNetplayButton = document.getElementById("openNetplayButton");
+            const playerNameInput = document.getElementById("playerNameInput");
+            const nesCoreSelect = document.getElementById("nesCoreSelect");
+            const roomNameInput = document.getElementById("roomNameInput");
+            const maxPlayersSelect = document.getElementById("maxPlayersSelect");
+            const roomPasswordInput = document.getElementById("roomPasswordInput");
+            const createRoomButton = document.getElementById("createRoomButton");
+            const refreshRoomsButton = document.getElementById("refreshRoomsButton");
+            const quickLobbyStatus = document.getElementById("quickLobbyStatus");
+            const roomList = document.getElementById("roomList");
+            const coreBadge = document.getElementById("coreBadge");
+            const playerNameStorageKey = "nekketsu-player-name";
+            const roomNameStorageKey = "nekketsu-room-name";
+            const nesCoreStorageKey = "nekketsu-nes-core";
+            let roomRefreshTimer = null;
+
+            function setRuntimeStatus(text, tone) {
+                document.body.dataset.runtimeStatus = tone;
+                runtimeBadge.dataset.tone = tone;
+                runtimeBadge.textContent = "运行状态: " + text;
+            }
+
+            function setNetplayButtonReady(isReady) {
+                openNetplayButton.disabled = !isReady;
+                openNetplayButton.textContent = isReady ? "打开联机面板" : "联机面板加载中";
+                createRoomButton.disabled = !isReady;
+                refreshRoomsButton.disabled = !isReady;
+            }
+
+            function getPlayerName() {
+                return (playerNameInput.value || "").trim().slice(0, 20);
+            }
+
+            function persistPlayerName() {
+                const value = getPlayerName();
+                if (value) {
+                    localStorage.setItem(playerNameStorageKey, value);
+                } else {
+                    localStorage.removeItem(playerNameStorageKey);
+                }
+            }
+
+            function applyPlayerName() {
+                const emulator = window.EJS_emulator;
+                const value = getPlayerName();
+                if (emulator && emulator.netplay && value) {
+                    emulator.netplay.name = value;
+                }
+            }
+
+            function setLobbyStatus(message) {
+                quickLobbyStatus.textContent = message;
+            }
+
+            function getSelectedCore() {
+                const value = String(nesCoreSelect.value || "").trim().toLowerCase();
+                return value === "nestopia" ? "nestopia" : "fceumm";
+            }
+
+            function persistSelectedCore() {
+                localStorage.setItem(nesCoreStorageKey, getSelectedCore());
+            }
+
+            function updateCoreBadge() {
+                const core = getSelectedCore();
+                coreBadge.textContent = "NES Core: " + (core === "nestopia" ? "Nestopia" : "FCEUmm");
+            }
+
+            function buildCorePaths(core) {
+                return {
+                    [`${core}-wasm.data`]: `/emulatorjs/cores/${core}/${core}-wasm.data`,
+                    [`${core}-thread-wasm.data`]: `/emulatorjs/cores/${core}/${core}-thread-wasm.data`,
+                    [`${core}-legacy-wasm.data`]: `/emulatorjs/cores/${core}/${core}-legacy-wasm.data`,
+                    [`${core}-thread-legacy-wasm.data`]: `/emulatorjs/cores/${core}/${core}-thread-legacy-wasm.data`,
+                    [`${core}.json`]: `/emulatorjs/cores/${core}/reports/${core}.json`,
+                    "zh-CN": "/emulatorjs/data/localization/zh.json",
+                    "zh": "/emulatorjs/data/localization/zh.json"
+                };
+            }
+
+            function showBanner(message) {
+                banner.style.display = "block";
+                banner.textContent = message;
+            }
+
+            function clearBanner() {
+                banner.style.display = "none";
+                banner.textContent = "";
+            }
+
+            function getRoomName() {
+                return (roomNameInput.value || "").trim().slice(0, 40);
+            }
+
+            function persistRoomName() {
+                const value = getRoomName();
+                if (value) {
+                    localStorage.setItem(roomNameStorageKey, value);
+                } else {
+                    localStorage.removeItem(roomNameStorageKey);
+                }
+            }
+
+            function ensureNetplayReady(openMenu) {
+                const emulator = window.EJS_emulator;
+                if (!emulator || !emulator.netplay) {
+                    throw new Error("模拟器还没有准备好。");
+                }
+
+                applyPlayerName();
+                const name = getPlayerName();
+                if (!name) {
+                    throw new Error("请先填写联机昵称。");
+                }
+
+                const netplay = emulator.netplay;
+                netplay.name = name;
+
+                if (!netplay.isMenuCreated()) {
+                    netplay.createNetplayMenu();
+                }
+
+                if (!netplay.updateList) {
+                    netplay.defineNetplayFunctions();
+                }
+
+                if (!netplay.table || !netplay.playerTable || !netplay.tabs) {
+                    netplay.openMenu();
+                    if (openMenu !== true) {
+                        netplay._menuElement.style.display = "none";
+                        if (netplay.updateList) {
+                            netplay.updateList.stop();
+                        }
+                    }
+                } else if (openMenu) {
+                    netplay.openMenu();
+                }
+
+                return netplay;
+            }
+
+            async function fetchRooms() {
+                if (!config) {
+                    return {};
+                }
+                const params = new URLSearchParams({
+                    domain: window.location.host,
+                    game_id: String(config.gameId)
+                });
+                const response = await fetch("/list?" + params.toString(), {
+                    cache: "no-store"
+                });
+                if (!response.ok) {
+                    throw new Error("房间列表加载失败");
+                }
+                return response.json();
+            }
+
+            function renderRoomList(rooms) {
+                roomList.innerHTML = "";
+                const entries = Object.entries(rooms);
+
+                if (entries.length === 0) {
+                    const empty = document.createElement("div");
+                    empty.className = "room-row";
+                    empty.innerHTML = '<div class="room-meta"><div class="room-name">当前没有公开房间</div><div class="room-sub">你可以直接在上面创建一个房间</div></div>';
+                    roomList.appendChild(empty);
+                    setLobbyStatus("当前没有公开房间");
+                    return;
+                }
+
+                entries.forEach(([roomId, room]) => {
+                    const row = document.createElement("div");
+                    row.className = "room-row";
+
+                    const meta = document.createElement("div");
+                    meta.className = "room-meta";
+                    const title = document.createElement("div");
+                    title.className = "room-name";
+                    title.textContent = room.room_name || roomId;
+                    const sub = document.createElement("div");
+                    sub.className = "room-sub";
+                    sub.textContent = `${room.current}/${room.max}` + (room.hasPassword ? " · 需要密码" : " · 公开房间");
+                    meta.appendChild(title);
+                    meta.appendChild(sub);
+
+                    const info = document.createElement("div");
+                    info.className = "room-sub";
+                    info.textContent = room.hasPassword ? "密码房" : "可直接加入";
+
+                    const joinButton = document.createElement("button");
+                    joinButton.type = "button";
+                    joinButton.className = "action-button";
+                    joinButton.textContent = "加入";
+                    joinButton.addEventListener("click", async () => {
+                        try {
+                            const netplay = ensureNetplayReady(true);
+                            let password = null;
+                            if (room.hasPassword) {
+                                password = window.prompt("请输入房间密码", "") || "";
+                                if (!password) {
+                                    return;
+                                }
+                            }
+                            setLobbyStatus(`正在加入：${room.room_name || roomId}`);
+                            netplay.joinRoom(roomId, room.room_name, room.max, password);
+                        } catch (error) {
+                            showError(error.message || String(error));
+                        }
+                    });
+
+                    row.appendChild(meta);
+                    row.appendChild(info);
+                    row.appendChild(joinButton);
+                    roomList.appendChild(row);
+                });
+
+                setLobbyStatus(`已刷新 ${entries.length} 个房间`);
+            }
+
+            async function refreshRooms() {
+                if (!config) {
+                    return;
+                }
+                try {
+                    clearBanner();
+                    const rooms = await fetchRooms();
+                    renderRoomList(rooms);
+                } catch (error) {
+                    setLobbyStatus("房间列表刷新失败");
+                    showBanner(error.message || String(error));
+                }
+            }
+
+            function startRoomRefresh() {
+                if (roomRefreshTimer) {
+                    clearInterval(roomRefreshTimer);
+                }
+                roomRefreshTimer = setInterval(() => {
+                    if (!createRoomButton.disabled) {
+                        refreshRooms();
+                    }
+                }, 3000);
+            }
+
+            function createRoomFromPage() {
+                try {
+                    clearBanner();
+                    const roomName = getRoomName();
+                    if (!roomName) {
+                        throw new Error("请先填写房间名。");
+                    }
+                    persistRoomName();
+                    const netplay = ensureNetplayReady(true);
+                    const maxPlayers = Number(maxPlayersSelect.value || 4);
+                    const password = (roomPasswordInput.value || "").trim().slice(0, 20);
+                    setLobbyStatus(`正在创建：${roomName}`);
+                    netplay.openRoom(roomName, maxPlayers, password);
+                } catch (error) {
+                    showError(error.message || String(error));
+                }
+            }
+
+            function showError(message) {
+                showBanner(message);
+                setRuntimeStatus("加载失败", "error");
+                setNetplayButtonReady(false);
+            }
+
+            async function copyPageLink() {
+                const url = window.location.href;
+                try {
+                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                        await navigator.clipboard.writeText(url);
+                    } else {
+                        const input = document.createElement("input");
+                        input.value = url;
+                        document.body.appendChild(input);
+                        input.select();
+                        document.execCommand("copy");
+                        input.remove();
+                    }
+                    copyLinkButton.textContent = "链接已复制";
+                    setTimeout(() => {
+                        copyLinkButton.textContent = "复制当前页面链接";
+                    }, 1500);
+                } catch (_error) {
+                    showError("复制链接失败，请手动复制当前页面地址。");
+                }
+            }
+
+            function openNetplayPanel() {
+                const emulator = window.EJS_emulator;
+                if (!emulator || typeof emulator.openNetplayMenu !== "function") {
+                    showError("模拟器还没有准备好，暂时无法打开联机面板。");
+                    return;
+                }
+                clearBanner();
+                persistPlayerName();
+                applyPlayerName();
+                emulator.openNetplayMenu();
+            }
+
+            copyLinkButton.addEventListener("click", copyPageLink);
+            openNetplayButton.addEventListener("click", openNetplayPanel);
+            playerNameInput.addEventListener("change", () => {
+                persistPlayerName();
+                applyPlayerName();
+            });
+            playerNameInput.addEventListener("blur", () => {
+                persistPlayerName();
+                applyPlayerName();
+            });
+            roomNameInput.addEventListener("change", persistRoomName);
+            roomNameInput.addEventListener("blur", persistRoomName);
+            createRoomButton.addEventListener("click", createRoomFromPage);
+            refreshRoomsButton.addEventListener("click", refreshRooms);
+            setNetplayButtonReady(false);
+
+            const storedPlayerName = localStorage.getItem(playerNameStorageKey);
+            if (storedPlayerName) {
+                playerNameInput.value = storedPlayerName;
+            }
+            const storedCore = localStorage.getItem(nesCoreStorageKey);
+            const availableCores = Array.isArray(window.NEKKETSU_ONLINE_CONFIG && window.NEKKETSU_ONLINE_CONFIG.nesCores)
+                ? window.NEKKETSU_ONLINE_CONFIG.nesCores
+                : ["fceumm", "nestopia"];
+            const defaultCore = String((window.NEKKETSU_ONLINE_CONFIG && window.NEKKETSU_ONLINE_CONFIG.defaultNesCore) || "fceumm").toLowerCase();
+            const initialCore = availableCores.includes(storedCore) ? storedCore : (availableCores.includes(defaultCore) ? defaultCore : "fceumm");
+            nesCoreSelect.value = initialCore;
+            updateCoreBadge();
+            const storedRoomName = localStorage.getItem(roomNameStorageKey);
+            if (storedRoomName) {
+                roomNameInput.value = storedRoomName;
+            } else {
+                roomNameInput.value = "热血格斗房";
+            }
+            nesCoreSelect.addEventListener("change", () => {
+                persistSelectedCore();
+                updateCoreBadge();
+                setLobbyStatus("内核已切换，页面将在 1 秒后重载");
+                setTimeout(() => window.location.reload(), 1000);
+            });
+
+            const config = window.NEKKETSU_ONLINE_CONFIG;
+            if (!config) {
+                showError("未加载到在线配置。请确认 online-config.js 可访问。");
+                return;
+            }
+
+            if (!window.RTCPeerConnection) {
+                showError("当前浏览器不支持 WebRTC，无法进行网页联机。请换现代浏览器再试。");
+                return;
+            }
+
+            window.EJS_player = "#game";
+            window.EJS_core = "nes";
+            window.EJS_gameName = "热血格斗传说";
+            window.EJS_gameUrl = config.romUrl;
+            window.EJS_pathtodata = "/emulatorjs/data/";
+            window.EJS_DEBUG_XX = true;
+            window.EJS_EXPERIMENTAL_NETPLAY = true;
+            window.EJS_language = "zh";
+            window.EJS_disableAutoLang = true;
+            window.EJS_startOnLoaded = true;
+            window.EJS_color = "#d89a1b";
+            window.EJS_gameID = config.gameId;
+            window.EJS_netplayServer = config.netplayServer;
+            window.EJS_netplayICEServers = config.iceServers;
+            window.EJS_threads = false;
+            window.EJS_disableCue = true;
+            const selectedCore = getSelectedCore();
+            window.EJS_Buttons = {
+                playPause: true,
+                restart: true,
+                fullscreen: true,
+                saveState: true,
+                loadState: true,
+                screenRecord: false,
+                gamepad: true,
+                cheat: true,
+                volume: true,
+                saveSavFiles: true,
+                loadSavFiles: true,
+                quickSave: true,
+                quickLoad: true,
+                settings: true,
+                netplay: true,
+            };
+            window.EJS_defaultControls = {
+                0: {
+                    0: { value: "k", value2: "KeyK" },
+                    1: { value: "j", value2: "KeyJ" },
+                    2: { value: "Shift", value2: "ShiftLeft" },
+                    3: { value: "Enter", value2: "Enter" },
+                    4: { value: "w", value2: "KeyW" },
+                    5: { value: "s", value2: "KeyS" },
+                    6: { value: "a", value2: "KeyA" },
+                    7: { value: "d", value2: "KeyD" }
+                }
+            };
+
+            window.EJS_defaultOptions = {
+                retroarch_core: selectedCore
+            };
+
+            window.EJS_paths = buildCorePaths(selectedCore);
+
+            window.EJS_ready = function () {
+                document.body.dataset.ejsReady = "1";
+                clearBanner();
+                setRuntimeStatus("模拟器已就绪", "ok");
+                applyPlayerName();
+                setNetplayButtonReady(true);
+                refreshRooms();
+                startRoomRefresh();
+            };
+
+            window.EJS_onGameStart = function () {
+                document.body.dataset.ejsStarted = "1";
+                clearBanner();
+                setRuntimeStatus("游戏已启动", "ok");
+                applyPlayerName();
+                setNetplayButtonReady(true);
+                refreshRooms();
+                startRoomRefresh();
+            };
+
+            setRuntimeStatus("正在加载模拟器", "loading");
+
+            const script = document.createElement("script");
+            script.src = "/emulatorjs/data/loader.js";
+            script.async = true;
+            script.onerror = () => {
+                showError("EmulatorJS loader 加载失败，请确认 /emulatorjs/data/loader.js 可访问。");
+            };
+            document.body.appendChild(script);
+        })();
+    </script>
+</body>
+</html>
