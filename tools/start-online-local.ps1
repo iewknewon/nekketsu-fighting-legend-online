@@ -1,11 +1,29 @@
 $ErrorActionPreference = "Stop"
 
 $root = Split-Path -Parent $PSScriptRoot
-$node = "D:\nodejs\node.exe"
 $port = if ($env:PORT) { [int]$env:PORT } else { 3001 }
-$outLog = Join-Path $root ".tmp\server-$port.out.log"
-$errLog = Join-Path $root ".tmp\server-$port.err.log"
+$tmpDir = Join-Path $root ".tmp"
 $pidFile = Join-Path $root ".tmp\server-$port.pid"
+
+function Resolve-NodePath {
+    $command = Get-Command node -ErrorAction SilentlyContinue
+    if ($command -and $command.Source) {
+        return $command.Source
+    }
+
+    $candidates = @(
+        "D:\nodejs\node.exe",
+        "C:\Program Files\nodejs\node.exe"
+    )
+
+    foreach ($candidate in $candidates) {
+        if (Test-Path -LiteralPath $candidate) {
+            return $candidate
+        }
+    }
+
+    throw "Node.js not found. Please install Node.js or add node.exe to PATH."
+}
 
 function Get-ListenerPids {
     param([int]$TargetPort)
@@ -40,8 +58,8 @@ function Stop-ExistingProjectServer {
     }
 }
 
-if (-not (Test-Path -LiteralPath $node)) {
-    throw "Node not found: $node"
+if (-not (Test-Path -LiteralPath $tmpDir)) {
+    New-Item -ItemType Directory -Path $tmpDir -Force | Out-Null
 }
 
 if (-not (Test-Path -LiteralPath (Join-Path $root "online-server\server.js"))) {
@@ -52,15 +70,17 @@ if (-not (Test-Path -LiteralPath (Join-Path $root "nekketsu-fighting-legend-cn.n
     throw "Missing ROM: nekketsu-fighting-legend-cn.nes"
 }
 
+$node = Resolve-NodePath
+$logStamp = Get-Date -Format "yyyyMMdd-HHmmss"
+$outLog = Join-Path $tmpDir "server-$port-$logStamp.out.log"
+$errLog = Join-Path $tmpDir "server-$port-$logStamp.err.log"
+
 Stop-ExistingProjectServer -TargetPort $port
 
 $occupiedPids = Get-ListenerPids -TargetPort $port
 if ($occupiedPids.Count -gt 0) {
     throw "Port ${port} is occupied by PID(s): $($occupiedPids -join ', '). Please free the port or run with another PORT."
 }
-
-if (Test-Path -LiteralPath $outLog) { Remove-Item -LiteralPath $outLog -Force }
-if (Test-Path -LiteralPath $errLog) { Remove-Item -LiteralPath $errLog -Force }
 if (Test-Path -LiteralPath $pidFile) { Remove-Item -LiteralPath $pidFile -Force }
 
 $proc = Start-Process `

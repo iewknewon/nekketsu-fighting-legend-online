@@ -43,6 +43,14 @@ if not exist "nekketsu-fighting-legend-cn.nes" (
 )
 
 echo 启动浏览器联机服务...
-set PORT=%PORT%
-start "" powershell -NoProfile -WindowStyle Hidden -Command "Start-Sleep -Seconds 2; Start-Process 'http://localhost:%PORT%/'"
-call npm run online
+call npm run online:start-local
+if %errorLevel% neq 0 (
+    echo [ERROR] 本地服务启动失败
+    pause
+    exit /b 1
+)
+
+start "" "http://localhost:%PORT%/"
+echo.
+echo 服务已启动: http://localhost:%PORT%/
+echo 停止服务可执行: npm run online:stop-local

@@ -294,14 +294,16 @@
 }
 
 .ejs_netplay_canvas {
-    position: fixed;
-    left: 0;
-    top: 0;
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
     background: #000;
-    z-index: 10001;
+    z-index: 5;
     image-rendering: pixelated;
     image-rendering: crisp-edges;
     pointer-events: none;
+    display: block;
 }
 
 .ejs_netplay_chat_container {

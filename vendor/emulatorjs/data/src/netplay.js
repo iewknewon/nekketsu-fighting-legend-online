@@ -63,6 +63,7 @@ export class Netplay {
         this._gotVideoEver = false;
         this._audioUnlockArmed = false;
         this._audioUnlockCleanup = null;
+        this._guestCanvasResizeCleanup = null;
         this._chatBound = false;
         this._leaving = false;
         this._dcTimer = null;
@@ -406,6 +407,107 @@ export class Netplay {
             if (this.emu.Module && this.emu.Module.getNativeResolution) return this.emu.Module.getNativeResolution();
         } catch (e) {}
         return { width: 640, height: 480 };
+    }
+
+    /** Get the current display rotation used by EmulatorJS */
+    getVideoRotation() {
+        try {
+            if (typeof this.emu.getSettingValue === "function") {
+                const rotation = parseInt(this.emu.getSettingValue("videoRotation") || 0, 10);
+                if (Number.isFinite(rotation)) return rotation;
+            }
+        } catch (e) {}
+        const configRotation = parseInt((this.emu.config && this.emu.config.videoRotation) || 0, 10);
+        return Number.isFinite(configRotation) ? configRotation : 0;
+    }
+
+    /** Calculate the visible gameplay frame after EmulatorJS aspect correction */
+    getDisplayVideoLayout(sourceWidth, sourceHeight) {
+        const fallback = this.getNativeResolution();
+        const frameWidth = Math.max(1, Math.round(sourceWidth || fallback.width || 640));
+        const frameHeight = Math.max(1, Math.round(sourceHeight || fallback.height || 480));
+        let aspectRatio = 4 / 3;
+
+        try {
+            if (this.emu.gameManager && typeof this.emu.gameManager.getVideoDimensions === "function") {
+                const gmAspect = Number(this.emu.gameManager.getVideoDimensions("aspect"));
+                if (Number.isFinite(gmAspect) && gmAspect > 0) {
+                    aspectRatio = gmAspect;
+                }
+            }
+        } catch (e) {}
+
+        const videoRotation = this.getVideoRotation();
+        const videoTurned = (videoRotation === 1 || videoRotation === 3);
+        const frameAspect = frameWidth / frameHeight;
+
+        let width = frameWidth;
+        let height = frameHeight;
+        if (frameWidth >= frameHeight && !videoTurned) {
+            width = frameHeight * aspectRatio;
+        } else if (frameWidth < frameHeight && !videoTurned) {
+            height = frameWidth / aspectRatio;
+        } else if (frameWidth >= frameHeight && videoTurned) {
+            width = frameHeight * (1 / aspectRatio);
+        } else if (frameWidth < frameHeight && videoTurned) {
+            height = frameWidth / (1 / aspectRatio);
+        }
+
+        width = Math.max(1, Math.round(width));
+        height = Math.max(1, Math.round(height));
+
+        const outputAspect = width / height;
+        let offsetX = 0;
+        let offsetY = 0;
+        if (frameAspect > outputAspect) {
+            offsetX = Math.round((frameWidth - width) / -2);
+        } else if (frameAspect < outputAspect) {
+            offsetY = Math.round((frameHeight - height) / -2);
+        }
+
+        return { width, height, offsetX, offsetY };
+    }
+
+    /** Fit the guest canvas into the emulator viewport while preserving aspect ratio */
+    resizeGuestCanvasBox(sourceWidth, sourceHeight) {
+        const canvas = this.emu.netplayCanvas;
+        const parent = this.emu && this.emu.elements ? this.emu.elements.parent : null;
+        if (!canvas || !parent || !sourceWidth || !sourceHeight) return;
+
+        const bounds = parent.getBoundingClientRect();
+        const parentWidth = Math.max(1, Math.round(bounds.width || parent.clientWidth || sourceWidth));
+        const parentHeight = Math.max(1, Math.round(bounds.height || parent.clientHeight || sourceHeight));
+        const sourceAspect = sourceWidth / sourceHeight;
+
+        let displayWidth = parentWidth;
+        let displayHeight = Math.round(displayWidth / sourceAspect);
+        if (displayHeight > parentHeight) {
+            displayHeight = parentHeight;
+            displayWidth = Math.round(displayHeight * sourceAspect);
+        }
+
+        const widthPx = Math.max(1, displayWidth) + "px";
+        const heightPx = Math.max(1, displayHeight) + "px";
+        if (canvas.style.width !== widthPx) canvas.style.width = widthPx;
+        if (canvas.style.height !== heightPx) canvas.style.height = heightPx;
+    }
+
+    /** Keep the guest canvas fitted when the browser viewport changes */
+    bindGuestCanvasResize() {
+        if (this._guestCanvasResizeCleanup) return;
+
+        const updateCanvasSize = () => {
+            const canvas = this.emu.netplayCanvas;
+            if (!canvas) return;
+            const sourceWidth = (this.video && this.video.videoWidth) || canvas.width;
+            const sourceHeight = (this.video && this.video.videoHeight) || canvas.height;
+            if (sourceWidth > 0 && sourceHeight > 0) {
+                this.resizeGuestCanvasBox(sourceWidth, sourceHeight);
+            }
+        };
+
+        window.addEventListener("resize", updateCanvasSize);
+        this._guestCanvasResizeCleanup = () => window.removeEventListener("resize", updateCanvasSize);
     }
 
     /** Get current player's index in the player list */
@@ -781,19 +883,38 @@ export class Netplay {
                 const emuCanvas = this.emu.canvas;
                 if (!emuCanvas || !emuCanvas.captureStream) { resolve(); return; }
 
-                // Capture directly from emulator canvas at a higher framerate to
-                // reduce guest-side video delay.
                 let rawStream;
                 try {
-                    rawStream = emuCanvas.captureStream(this.videoCaptureFps);
-                } catch (e) {
-                    resolve(); return;
+                    this.captureCanvas = document.createElement("canvas");
+                    this._captureCtx = this.captureCanvas.getContext("2d", { alpha: false });
+                    if (this._captureCtx && this.captureCanvas.captureStream) {
+                        this._captureCtx.imageSmoothingEnabled = false;
+                        this.captureRunning = true;
+                        this._startCaptureLoop();
+                        rawStream = this.captureCanvas.captureStream(this.videoCaptureFps);
+                    }
+                } catch (e) {}
+
+                if (!rawStream) {
+                    this.captureRunning = false;
+                    this._captureLoopRunning = false;
+                    this._captureCtx = null;
+                    this.captureCanvas = null;
+                    try {
+                        rawStream = emuCanvas.captureStream(this.videoCaptureFps);
+                    } catch (e) {
+                        resolve(); return;
+                    }
                 }
 
-                if (!rawStream || rawStream.getVideoTracks().length === 0) { resolve(); return; }
+                if (!rawStream || rawStream.getVideoTracks().length === 0) {
+                    this.captureRunning = false;
+                    this._captureLoopRunning = false;
+                    resolve();
+                    return;
+                }
 
-                // "motion" for gameplay (prioritizes framerate/smoothness).
-                try { rawStream.getVideoTracks()[0].contentHint = "motion"; } catch (e) {}
+                try { rawStream.getVideoTracks()[0].contentHint = "detail"; } catch (e) {}
 
                 // Build final stream with video + audio
                 const finalStream = new MediaStream();
@@ -837,7 +958,6 @@ export class Netplay {
                 this.localStream = finalStream;
                 this._dlog("[NETPLAY HOST] Stream ready - video tracks:", finalStream.getVideoTracks().length, "audio tracks:", finalStream.getAudioTracks().length);
 
-                this.captureRunning = true;
                 resolve();
             } catch (e) {
                 console.error("[NETPLAY HOST] initWebRTCStream error:", e);
@@ -846,7 +966,7 @@ export class Netplay {
         });
     }
 
-    /** Capture loop for offscreen canvas (currently unused - direct capture preferred) */
+    /** Capture loop for offscreen canvas used as the host video source */
     _startCaptureLoop() {
         if (this._captureLoopRunning) return;
         this._captureLoopRunning = true;
@@ -856,30 +976,40 @@ export class Netplay {
         const captureCtx   = this._captureCtx;
         if (!emuCanvas || !captureCanvas || !captureCtx) return;
 
-        const INTERVAL = 1000 / 62;
+        const INTERVAL = 1000 / this.videoCaptureFps;
         let lastTime = 0;
+
+        const copyFrame = () => {
+            try {
+                const sw = emuCanvas.width;
+                const sh = emuCanvas.height;
+                if (sw <= 0 || sh <= 0) return;
+
+                const layout = this.getDisplayVideoLayout(sw, sh);
+                if (captureCanvas.width !== layout.width || captureCanvas.height !== layout.height) {
+                    captureCanvas.width = layout.width;
+                    captureCanvas.height = layout.height;
+                    captureCtx.imageSmoothingEnabled = false;
+                }
+
+                captureCtx.fillStyle = "#000";
+                captureCtx.fillRect(0, 0, captureCanvas.width, captureCanvas.height);
+                captureCtx.drawImage(emuCanvas, layout.offsetX, layout.offsetY, emuCanvas.width, emuCanvas.height);
+            } catch (e) {}
+        };
 
         const loop = (now) => {
             if (!this._captureLoopRunning || !this.captureRunning) return;
 
             if (now - lastTime >= INTERVAL) {
-                try {
-                    const sw = emuCanvas.width;
-                    const sh = emuCanvas.height;
-                    if (sw > 0 && sh > 0) {
-                        if (captureCanvas.width !== sw || captureCanvas.height !== sh) {
-                            captureCanvas.width  = sw;
-                            captureCanvas.height = sh;
-                        }
-                        captureCtx.drawImage(emuCanvas, 0, 0);
-                    }
-                } catch (e) {}
+                copyFrame();
                 lastTime = now;
             }
 
             requestAnimationFrame(loop);
         };
 
+        copyFrame();
         requestAnimationFrame(loop);
     }
 
@@ -922,25 +1052,17 @@ export class Netplay {
             // Create overlay canvas for remote video
             if (!this.emu.netplayCanvas) {
                 this.emu.netplayCanvas = this.emu.createElement("canvas");
-                this.emu.netplayCanvas.classList.add("ejs_canvas");
+                this.emu.netplayCanvas.classList.add("ejs_netplay_canvas");
             }
 
             Object.assign(this.emu.netplayCanvas.style, {
-                position: "absolute",
-                top: "0",
-                left: "0",
-                width: "100%",
-                height: "100%",
-                zIndex: "5",
-                display: "block",
-                objectFit: "contain",
-                objectPosition: "center",
-                pointerEvents: "none"
+                display: "block"
             });
 
             if (!this.emu.netplayCanvas.parentElement) {
                 this.emu.elements.parent.appendChild(this.emu.netplayCanvas);
             }
+            this.bindGuestCanvasResize();
 
             const parentCs = window.getComputedStyle(this.emu.elements.parent);
             if (parentCs.position === "static") {
@@ -959,11 +1081,15 @@ export class Netplay {
 
             // Show "Connecting..." message
             const ctx = this.emu.netplayCanvas.getContext("2d", { alpha: false, willReadFrequently: true });
-            const nativeRes = this.getNativeResolution();
-            const nativeW = (nativeRes && nativeRes.width) ? nativeRes.width : 640;
-            const nativeH = (nativeRes && nativeRes.height) ? nativeRes.height : 480;
+            const placeholderLayout = this.getDisplayVideoLayout(
+                this.emu.canvas ? this.emu.canvas.width : 640,
+                this.emu.canvas ? this.emu.canvas.height : 480
+            );
+            const nativeW = placeholderLayout.width;
+            const nativeH = placeholderLayout.height;
             this.emu.netplayCanvas.width = nativeW;
             this.emu.netplayCanvas.height = nativeH;
+            this.resizeGuestCanvasBox(nativeW, nativeH);
             
             ctx.fillStyle = "#000";
             ctx.fillRect(0, 0, nativeW, nativeH);
@@ -1025,49 +1151,30 @@ export class Netplay {
 
         let running = true;
         let started = false;
+        let lastVideoWidth = 0;
+        let lastVideoHeight = 0;
         const drawFrame = () => {
             if (!running || !this.emu.isNetplay || this.owner || !canvas.parentNode) return;
 
             if (video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0) {
                 const vw = video.videoWidth;
                 const vh = video.videoHeight;
-                
-                // Calculate aspect ratio correction
-                const nativeRes = this.getNativeResolution();
-                let nativeAspect = 4 / 3;
-                if (nativeRes && nativeRes.width && nativeRes.height) {
-                    nativeAspect = nativeRes.width / nativeRes.height;
-                }
-                
-                const videoAspect = vw / vh;
-                let srcX = 0, srcY = 0, srcW = vw, srcH = vh;
+                const sizeChanged = (canvas.width !== vw || canvas.height !== vh || lastVideoWidth !== vw || lastVideoHeight !== vh);
 
-                // Crop to correct aspect ratio if needed
-                if (videoAspect > nativeAspect + 0.05) {
-                    srcH = vh;
-                    srcW = vh * nativeAspect;
-                    srcX = (vw - srcW) / 2;
-                } 
-                else if (videoAspect < nativeAspect - 0.05) {
-                    srcW = vw;
-                    srcH = vw / nativeAspect;
-                    srcY = 0; 
+                if (canvas.width !== vw || canvas.height !== vh) {
+                    canvas.width = vw;
+                    canvas.height = vh;
+                }
+                if (sizeChanged) {
+                    this.resizeGuestCanvasBox(vw, vh);
+                    lastVideoWidth = vw;
+                    lastVideoHeight = vh;
                 }
 
-                srcX = Math.round(srcX);
-                srcY = Math.round(srcY);
-                srcW = Math.max(1, Math.round(srcW));
-                srcH = Math.max(1, Math.round(srcH));
-
-                if (canvas.width !== srcW || canvas.height !== srcH) {
-                    canvas.width = srcW;
-                    canvas.height = srcH;
-                }
-                
                 ctx.fillStyle = "#000";
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
                 ctx.imageSmoothingEnabled = false;
-                ctx.drawImage(video, srcX, srcY, srcW, srcH, 0, 0, canvas.width, canvas.height);
+                ctx.drawImage(video, 0, 0, vw, vh, 0, 0, canvas.width, canvas.height);
             }
         };
 
@@ -1541,6 +1648,7 @@ export class Netplay {
         } catch (e) {}
         if (this.remoteAudioElements) this.remoteAudioElements = {};
         if (this._audioUnlockCleanup) { try { this._audioUnlockCleanup(); } catch (e) {} this._audioUnlockCleanup = null; }
+        if (this._guestCanvasResizeCleanup) { try { this._guestCanvasResizeCleanup(); } catch (e) {} this._guestCanvasResizeCleanup = null; }
         this._audioUnlockArmed = false;
 
         // Clean up dedicated remote audio context
